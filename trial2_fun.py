@@ -56,7 +56,7 @@ def convert_data(flist,d = './data/'):
         print(varname, 'reading...')
         df = pd.read_csv(dir0, sep=' ', header=None,
               index_col=0, dtype=np.int64)
-        df.columns = [varname]
+        df.columns = ['p']
         df = df.sort_index()
         df.index = [dt.datetime.utcfromtimestamp(int(i2))
                                 for i2 in df.index.to_native_types()]
@@ -126,7 +126,7 @@ def adjtime(df1, varnames):
         skip[varname] = 0
         j=0
         t1 = np.int64(np.array(df.index).astype('datetime64[s]'))
-        n1 = np.array(df.)
+        n1 = np.array(df[str(varname)])
         t0s = np.int64(np.array(df1.index).astype('datetime64[s]'))
         n1 = t0s.copy()
         ns[:] = np.nan
