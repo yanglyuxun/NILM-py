@@ -5,28 +5,64 @@ Nonintrusive Load Monitoring
 ==========[[[house1]]]=============
 @author: Lyuxun Yang
 """
+import os
+os.chdir('/home/igen/桌面/Work/3.rules_of_electricity_usage-PY')
 
 from trial2_fun import *
 from collections import Counter
 #import matplotlib.pyplot as plt
 
-# read data -----------------
+# prepare data file list -----------------
 datadir = "/media/igen/DATA/_Onedrive/Data/uk-power/house_1/"
 flist = dealfnames(datadir).join(pd.read_csv(datadir+'labels.dat',sep=' ',header=None,index_col=0))
 flist.columns = ['dir','label']
-flist['varname'] = ['p'+str(i) for i in flist.index]
+flist['varname'] = [str(i) for i in flist.index]
+flist['use'] = True
 
-# read all
-dflist = read_all_data(flist)
-#########################################
-#########################################
-To be continued...
+
+## cut the time period of each data
+#get_time(flist).describe()
+## decide the starttime
+#sorted(get_time(flist)['first'])
+#get_time(flist)['first']
+#flist.loc[[52,53],'use']=False
+#starttime = sorted(get_time(flist)['first'])[-3]
+#sorted(get_time(flist)['last'])
+#starttime = max(starttime)
+#endtime = min(endtime)
+
+#%% convert all data to pickle
+convert_data(flist)
+
+#%% get the index and adjust all others
+df1 = fillto6(load(1))
+Counter(np.diff(df1.index))
+store(df1, 1)
+#Counter({numpy.timedelta64(5000000000,'ns'): 230927,
+#         numpy.timedelta64(6000000000,'ns'): 19828201,
+#         numpy.timedelta64(7000000000,'ns'): 2943424,
+#         numpy.timedelta64(8000000000,'ns'): 7})
+temp_skip = adjtime(df1, [2])
+
+
+#%%######################################
+# old part
 ########################################
-# remove some useless machine which has too less samples
-flist = flist.loc[[i not in ['p11','p25'] for i in flist.varname],:]
-del dflist['p11'],dflist['p25']
 
-# cut the times of each data
+
+# fill in index and combine all data
+dfall = fillto6(dflist['p1'])
+Counter(np.diff(dfall.index))
+#Counter({numpy.timedelta64(5000000000,'ns'): 230927,
+#         numpy.timedelta64(6000000000,'ns'): 19828201,
+#         numpy.timedelta64(7000000000,'ns'): 2943424,
+#         numpy.timedelta64(8000000000,'ns'): 7})
+
+# remove some useless machine which has too less samples
+#flist = flist.loc[[i not in ['p11','p25'] for i in flist.varname],:]
+#del dflist['p11'],dflist['p25']
+
+# cut the time period of each data
 starttime = sorted([dflist[i].index[0] for i in dflist])
 endtime = sorted([dflist[i].index[-1] for i in dflist])
 starttime = max(starttime)

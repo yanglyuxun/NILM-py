@@ -12,7 +12,10 @@ import numpy as np
 from scipy.stats import mode
 import xgboost as xgb
 import matplotlib.pyplot as plt
+import pickle
 #from sklearn.metrics import confusion_matrix
+
+
 
 def dealfnames(datadir):
     'get the info of data'
@@ -27,26 +30,71 @@ def dealfnames(datadir):
     df.index = df.pop('n')
     return df.sort_index().drop(['button','var'],axis=1)
 
-def read_all_data(flist):
-    'read all data from files'
-    dflist = {}
+#def get_time(flist):
+#    first=[]
+#    last = []
+#    def strip2(s):
+#        return dt.datetime.utcfromtimestamp(int(s.strip().split(b' ')[0]))
+#    for i,di in enumerate(flist['dir']):
+#        with open(di, 'rb') as f:  
+#            first.append(strip2(f.readline()))
+#            f.seek(-50, 2) # point to the last 50 chars
+#            lines = f.readlines() 
+#            if len(lines)>=2: 
+#                last.append(strip2(lines[-1]))
+#            else:
+#                raise Exception('Error!')
+#    return pd.DataFrame({'first':first,'last':last},index = flist.varname)
+#            
+def convert_data(flist,d = './data/'):
+    'read all csv files from files and convert them in pickle files'
+    
+    if not os.path.exists(d):
+        os.mkdir(d)
     for i,dir0 in enumerate(flist.dir):
         varname = flist['varname'].iloc[i]
-        print(varname, 'working...')
-        dflist[varname] = pd.read_csv(dir0, sep=' ', header=None,
+        print(varname, 'reading...')
+        df = pd.read_csv(dir0, sep=' ', header=None,
               index_col=0, dtype=np.int64)
-        dflist[varname].columns = [varname]
-        dflist[varname] = dflist[varname].sort_index()
-        dflist[varname].index = [dt.datetime.utcfromtimestamp(int(i2))
-                                for i2 in dflist[varname].index.to_native_types()]
+        df.columns = [varname]
+        df = df.sort_index()
+        df.index = [dt.datetime.utcfromtimestamp(int(i2))
+                                for i2 in df.index.to_native_types()]
+        print(varname, 'writing...')
+        with open(d+varname+'.pc','wb') as f:
+            pickle.dump(df,f)
         print(varname, 'finished.\n')
-    return dflist
 
-def cut_data_bytime(dflist,starttime, endtime):
-    for i in dflist:
-        dflist[i] = dflist[i].loc[[(i>=starttime) & (i<=endtime) for i in dflist[i].index],:]
-        print(i, ': finished. Shape:',dflist[i].shape)
-    return dflist
+def load(n,d = './data/'):
+    with open(d+str(n)+'.pc','rb') as f:
+        df = pickle.load(f)
+    return df
+
+def store(df,n,d = './data/'):
+    with open(d+str(n)+'.pc','wb') as f:
+        pickle.dump(df,f)
+    
+
+#def read_all_data(flist):
+#    'read all data from files'
+#    dflist = {}
+#    for i,dir0 in enumerate(flist.dir):
+#        varname = flist['varname'].iloc[i]
+#        print(varname, 'working...')
+#        dflist[varname] = pd.read_csv(dir0, sep=' ', header=None,
+#              index_col=0, dtype=np.int64)
+#        dflist[varname].columns = [varname]
+#        dflist[varname] = dflist[varname].sort_index()
+#        dflist[varname].index = [dt.datetime.utcfromtimestamp(int(i2))
+#                                for i2 in dflist[varname].index.to_native_types()]
+#        print(varname, 'finished.\n')
+#    return dflist
+
+#def cut_data_bytime(dflist,starttime, endtime):
+#    for i in dflist:
+#        dflist[i] = dflist[i].loc[[(i>=starttime) & (i<=endtime) for i in dflist[i].index],:]
+#        print(i, ': finished. Shape:',dflist[i].shape)
+#    return dflist
 
 def fillto6(df):
     ints = pd.to_timedelta(np.diff(df.index)).astype('timedelta64[s]')
@@ -60,45 +108,49 @@ def fillto6(df):
         for j in ((ints[i]/nints) * np.array(range(1,nfill[i]+1))).round().astype('timedelta64[s]'):
             inttimes.append(df.index[i] + j)
         n+=1
-        if n%1000==0:
+        if n%10000==0:
             print(n/nall)
     df = pd.concat([df,pd.DataFrame(index=inttimes)]).sort_index()
     return df
 
-def adjtime(dfall, dflist):
+def adjtime(df1, varnames):
     'adjust the time of all meters'
-    dfall = dfall.sort_index()
+    df1 = df1.sort_index()
     skip = {}
-    for varname in dflist:
-        if varname=='p1':
+    for varname in varnames:
+        if varname==1:
             continue
-        skip[varname] = 0
         print(varname,'------------------------')
-        dfall[varname] = np.nan
+        print('Reading...')
+        df = load(varname)
+        skip[varname] = 0
         j=0
-        t1 = np.int64(np.array(dflist[varname].index).astype('datetime64[s]'))
-        t0s = np.int64(np.array(dfall.index).astype('datetime64[s]'))
+        t1 = np.int64(np.array(df.index).astype('datetime64[s]'))
+        n1 = np.array(df.)
+        t0s = np.int64(np.array(df1.index).astype('datetime64[s]'))
+        n1 = t0s.copy()
+        ns[:] = np.nan
         jmax = len(t1) - 1
         imax = len(t0s) - 1
-        temp = dfall[varname].copy()
+        print('Looping...')
         for i,t0 in enumerate(t0s):
             if j>=jmax:
                 break
-            while abs(t0-t1[j])>abs(t0-t1[j+1]):
+            while np.abs(t0-t1[j])>np.abs(t0-t1[j+1]):
                 j += 1
                 if j>=jmax:
                     break
-            if abs(t1[j] - t0) <= 4:
-                temp.iloc[i] = dflist[varname].iloc[j,0]
+            if np.abs(t1[j] - t0) <= 4:
+                ns[i] = df.iloc[j,0]
             else:
                 skip[varname]+=1
-            if i % 10000 ==0:
+            if i % 1000 ==0:
                 print(i/imax, 'has been finished.')
                 print('match index:',i,j)
-        dfall[varname] = temp
+        print('Writing...')
+        store(temp,varname)
         print(varname,': Done.')
-    print('skip:\n',skip)
-    return dfall
+    return skip
 
 def impute(df0):
     'imputation'

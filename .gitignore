@@ -1,1 +1,3 @@
 *.spydata
+/data/
+/data (副本)/
