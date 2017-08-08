@@ -235,7 +235,7 @@ def P_profile(p0, closestep = 10):
     return pd.Series(p1,index = p0.index)
 
 def on_off_detect(p, bound, closestep=10):
-    'detect in a single meter'
+    'detect on/off in a single meter'
     bound=(p.max())*bound + (p.min())*(1-bound)
     p2 = P_profile(P_profile(p)) #closestep = 10
     gc.collect()
