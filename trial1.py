@@ -3,10 +3,10 @@
 """
 Nonintrusive Load Monitoring
 =================[[[house5]]]=============
-@author: Lyuxun Yang
+
 """
 
-from trial1_fun import *
+from trial1_fun import * #调用写好的各种函数
 from collections import Counter
 import matplotlib.pyplot as plt
 
@@ -85,9 +85,9 @@ para = {'num_boost_round':50,
                      'objective':'binary:logistic'}}
 # result_trainrate = {}
 MC_trainrate(dfall,beginmat,endmat,para,result_trainrate,selection=[],
-                 lag=10,pre=10,trainrate=0.7,train_n=range(1,21),rep=10)
+                 lag=10,pre=10,trainrate=0.7,train_n=range(19,21),rep=10)
 
 table_s = make_table_s(result_trainrate, flist)
 table_s_1 = make_error_table(table_s)
-tables1_plot(table_s_1,flist)
+tables1_plot(table_s_1.loc[[i for i in table_s_1.index if i not in [('p9','begin'),('p9','end')]]],flist)
 plot_on_off(dfall, beginmat, endmat, 'p9',lines=False)

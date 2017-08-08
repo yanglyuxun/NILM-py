@@ -340,10 +340,10 @@ def MC_all(dfall,begin,end,para,selection=[],lag=10,pre=10,trainrate=0.7,train_n
         if var=='any':
             continue
         print('\n',var,'------------------------')
-        x,y,tx,ty = MakeData(dfall[var],begin[var], begin['any'],lag,pre,trainrate,train_n)
+        x,y,tx,ty = MakeData(dfall['p1'],begin[var], begin['any'],lag,pre,trainrate,train_n)
         result[var]={}
         result[var]['begin'] = xgb_result(x,y,tx,ty,para)
-        x,y,tx,ty = MakeData(dfall[var],end[var],end['any'],lag,pre,trainrate,train_n)
+        x,y,tx,ty = MakeData(dfall['p1'],end[var],end['any'],lag,pre,trainrate,train_n)
         result[var]['end'] = xgb_result(x,y,tx,ty,para)
     return result
 
@@ -390,8 +390,9 @@ def make_table(result,flist):
 def make_table_s(result_s, flist):
     tables={}
     for n in result_s:
-        tables[n] = make_table(result_s[n],flist)
-        print(n,'done.')
+        if n in flist.varname:
+            tables[n] = make_table(result_s[n],flist)
+            print(n,'done.')
     return tables
 def make_error_table(tables):
     first = True

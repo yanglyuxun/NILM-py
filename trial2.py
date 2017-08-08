@@ -3,8 +3,9 @@
 """
 Nonintrusive Load Monitoring
 ==========[[[house1]]]=============
-@author: Lyuxun Yang
+
 """
+#%% import and setup
 import os
 os.chdir('/home/igen/桌面/Work/3.rules_of_electricity_usage-PY')
 
@@ -12,93 +13,76 @@ from trial2_fun import *
 from collections import Counter
 #import matplotlib.pyplot as plt
 
-# prepare data file list -----------------
-datadir = "/media/igen/DATA/_Onedrive/Data/uk-power/house_1/"
+#%% prepare data file list 
+datadir = "./Data_origin/uk-power/house_1/"
 flist = dealfnames(datadir).join(pd.read_csv(datadir+'labels.dat',sep=' ',header=None,index_col=0))
 flist.columns = ['dir','label']
 flist['varname'] = [str(i) for i in flist.index]
-flist['use'] = True
+flist.drop(3,inplace=True) # because it is solar powered
 
+## see the time situation
+get_time(flist).describe()
+# decide the starttime
+sorted(get_time(flist)['first'])
+get_time(flist)['first']
 
-## cut the time period of each data
-#get_time(flist).describe()
-## decide the starttime
-#sorted(get_time(flist)['first'])
-#get_time(flist)['first']
-#flist.loc[[52,53],'use']=False
-#starttime = sorted(get_time(flist)['first'])[-3]
-#sorted(get_time(flist)['last'])
-#starttime = max(starttime)
-#endtime = min(endtime)
+sorted(get_time(flist)['last'])
+get_time(flist)['last']
+
 
 #%% convert all data to pickle
 convert_data(flist)
+des = describe(flist.index)
 
 #%% get the index and adjust all others
 df1 = fillto6(load(1))
 Counter(np.diff(df1.index))
+#Counter({numpy.timedelta64(5000000000,'ns'): 230927,
+#         numpy.timedelta64(6000000000,'ns'): 19828201,
+#         numpy.timedelta64(7000000000,'ns'): 2943424,
+#         numpy.timedelta64(8000000000,'ns'): 7})
 store(df1, 1)
-#Counter({numpy.timedelta64(5000000000,'ns'): 230927,
-#         numpy.timedelta64(6000000000,'ns'): 19828201,
-#         numpy.timedelta64(7000000000,'ns'): 2943424,
-#         numpy.timedelta64(8000000000,'ns'): 7})
-temp_skip = adjtime(df1, [2])
+store(df1.index,'index')
+missing = adjtime(flist.index)
+
+# check the stats
+missing['rate'] = missing.missing/missing.len
+des2 = describe(flist.index)
+des['newcount'] = des2['count']
+des['newcount']-des['count']
+
+#%% imputation
+impute(flist.index)
+
+#%% on/off detection
+on_off_all(flist.index) # save pickle files: n+'onoff.pc'
+#plot_on_off_all(flist)
+lenth = plot_on_off_all(flist,save=20)
+lenth = update_lenth(flist,lenth)
+# lenth2 = update_lenth(flist)
+flist['lenth']=pd.Series(list(lenth.values()),index=lenth.keys())
+flist_bak = flist.copy()
+del lenth
+flist = flist.loc[flist.lenth>=70] # only use ones whose samples >70 
+
+#%% make the data that will be used
+# store: 1event 1noevent
+trans_data_1()
 
 
-#%%######################################
-# old part
-########################################
 
 
-# fill in index and combine all data
-dfall = fillto6(dflist['p1'])
-Counter(np.diff(dfall.index))
-#Counter({numpy.timedelta64(5000000000,'ns'): 230927,
-#         numpy.timedelta64(6000000000,'ns'): 19828201,
-#         numpy.timedelta64(7000000000,'ns'): 2943424,
-#         numpy.timedelta64(8000000000,'ns'): 7})
+#%% MC
 
-# remove some useless machine which has too less samples
-#flist = flist.loc[[i not in ['p11','p25'] for i in flist.varname],:]
-#del dflist['p11'],dflist['p25']
-
-# cut the time period of each data
-starttime = sorted([dflist[i].index[0] for i in dflist])
-endtime = sorted([dflist[i].index[-1] for i in dflist])
-starttime = max(starttime)
-endtime = min(endtime)
-
-# cut data
-dflist = cut_data_bytime(dflist, starttime, endtime)
-Counter(np.diff(dflist['p1'].index))
-
-# fill in index and combine all data
-dfall = fillto6(dflist['p1'])
-Counter(np.diff(dfall.index))
-
-# adjust time
-dfall = adjtime(dfall, dflist)
-
-#imputation
-dfall = impute(dfall)
-dfall.apply(lambda x: x.isnull().sum())
-
-# on/off detection
-beginmat,endmat = on_off_all(dfall)
-
-plot_on_off(dfall, beginmat, endmat, 'p3')
-plot_on_off(dfall, beginmat, endmat, 'p7')
-plot_on_off(dfall, beginmat, endmat, 'p13')
-plot_on_off_p1(dfall, beginmat, endmat)
-
-plot_on_off_all(dfall,beginmat, endmat, var=[], bound=0.05)
 
 # MC
-para = {'num_boost_round':50, 
-        'params':{'max_depth':12, 'eta':0.3,
-                     'booster':'gbtree',
-                     'objective':'binary:logistic'}}
-result = MC_all(dfall,beginmat,endmat,para,selection=['p13'])
+
+para = trans_para(base_score=0.5, colsample_bylevel=1, colsample_bytree=0.8,
+       gamma=0.02, learning_rate=0.01, max_delta_step=0, max_depth=7,
+       min_child_weight=1, missing=None, n_estimators=704, nthread=-1,
+       objective='binary:logistic', reg_alpha=0.5, reg_lambda=1,
+       scale_pos_weight=1, seed=27, silent=True, subsample=0.8)
+result = MC_all(flist,para,selection=[])
 # multi_result=[]
 MC_all_multi(dfall,beginmat,endmat,para,multi_result,selection=[],rep=100)
 table_all = make_table(multi_result,flist)
@@ -121,6 +105,10 @@ para = {'num_boost_round':50,
                      'booster':'gbtree',
                      'objective':'binary:logistic'}}
 # result_trainrate = {}
-MC_trainrate(dfall,beginmat,endmat,para,result_trainrate,selection=[],
-                 lag=10,pre=10,trainrate=0.7,train_n=range(1,21),rep=10)
+MC_trainrate(flist,para,result_trainrate,selection=[],
+                 trainrate=0.5,train_n=range(1,21),rep=10)
 
+table_s = make_table_s(result_trainrate, flist)
+table_s_1 = make_error_table(table_s)
+tables1_plot(table_s_1.loc[[i for i in table_s_1.index if i not in [('p9','begin'),('p9','end')]]],flist)
+#plot_on_off(dfall, beginmat, endmat, 'p9',lines=False)

@@ -457,19 +457,13 @@ def Errmodel(model,x,y,xtest,ytest, **other):
             "test":Err(ytest,ytestp)}), test_time
 def xgb_result(x,y,testx,testy,para):
     print("----- Working on 'xgb' method...")
-    #dtrain = xgb.DMatrix(x, label=y)
-    #dtest = xgb.DMatrix(testx, label=testy)
-    xgb0=XGBClassifier(**para)
-#    with open('xgb.pickle','rb') as f:
-#        xgb0 = pickle.load(f)
+    xgb0 = XGBClassifier(**para)
     time0 = time.time()
-    #bst = xgb.train(dtrain=dtrain,**para)
     xgb0.fit(x,y)
     train_time = time.time() - time0
-    confusion, test_time = Errmodel(xgb0,x,y,testx,testy,
-             ntree_limit=xgb0.booster().best_iteration)
+    confusion, test_time = Errmodel(xgb0,x,y,testx,testy)
     print(confusion,'\n', train_time,'\n', test_time)
-    importance = sorted(xgb0.booster().get_score().items(), key=lambda x: x[1])
+    importance = pd.Series(xgb0.booster().get_fscore()).sort_values(ascending=False)
     result= {'model': xgb0,
             'confusion': confusion,
             'train_time': train_time,
