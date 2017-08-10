@@ -356,6 +356,7 @@ def plot_on_off_all(flist,bound=0.01,save=False):
     lenth = {}
     for varn in flist.index:
         l1 = plot_on_off(varn,flist,bound,save)
+        gc.collect()
         if l1:
             lenth.update(l1)
     return lenth
@@ -420,10 +421,10 @@ def MakeData(markind, trainrate=0.5,train_n=0):
     n1 = len(mk1)
     if train_n:
         mk0 = sample(mk0,train_n)
-    #mk0 = sample(mk0,n0)
+    mk0 = sample(mk0,n0)
     ev0 = sample(ev0,n0)
     noev0 = sample(noev0,n0)
-    #mk1 = sample(mk1,n1)
+    mk1 = sample(mk1,n1)
     ev1 = sample(ev1,n1)
     noev1 = sample(noev1,n1)
     trainx = pd.concat([mk0,ev0,noev0]).sample(frac=1)
@@ -547,9 +548,9 @@ def trans_para(**par):
 def make_table_s(result_s, flist):
     tables={}
     for n in result_s:
-        if n in flist.index:
-            tables[n] = make_table(result_s[n],flist)
-            print(n,'done.')
+#        if n in flist.index:
+        tables[n] = make_table(result_s[n],flist)
+        print(n,'done.')
     return tables
 def make_error_table(tables):
     first = True

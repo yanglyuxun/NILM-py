@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-parameter tuning
+XGBoost 调参
 
-reference:
+参考资料:
     https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
+不过代码做了大量修改
 """
-#%%
+#%% XGBoost参数说明文本
 #2. XGBoost Parameters
 #
 #The overall parameters have been divided into 3 categories by XGBoost authors:
@@ -34,7 +35,7 @@ reference:
 #There are 2 more parameters which are set automatically by XGBoost and you need not worry about them. Lets move on to Booster parameters.
 #
 # 
-#Booster Parameters: see the following...
+#Booster Parameters: （这部分的很多参数说明我都剪切到后面去了）
 #
 #Though there are 2 types of boosters, I’ll consider only tree booster here because it always outperforms the linear booster and thus the later is rarely used.
 #
@@ -47,9 +48,9 @@ reference:
 #        A value greater than 0 should be used in case of high class imbalance as it helps in faster convergence.
 
 
-#%%
+#%% import和预定义各种函数备用
 import os
-os.chdir('/home/igen/桌面/Work/3.rules_of_electricity_usage-PY/new_house5')
+os.chdir('/home/igen/桌面/Work/3.rules_of_electricity_usage-PY')
 
 from trial2_fun import *
 from collections import Counter
@@ -100,6 +101,7 @@ def modelfit(alg, x, y,useTrainCV=True, cv_folds=5, early_stopping_rounds=50):
         return cvresult.shape[0]
 
 def tune(xgb, param):
+    '这个函数用来在已有的model xgb上在param_grid param中进行GridSearchCV'
     gsearch1 = GridSearchCV(estimator = xgb, 
                             param_grid = param, 
                             scoring='roc_auc',
@@ -113,20 +115,22 @@ def tune(xgb, param):
     print(gsearch1.best_params_)
     return gsearch1,gsearch1.best_params_
 
-#%% Data
-varn=20
+#%% 读入数据。这里读入的是7号分电表的数据，最后把训练集和测试集合并，因为后面会做CV的
+varn=7
 onoff = load(str(varn)+'onoff')
 x,y,tx,ty = MakeData(onoff.index[onoff.begin],trainrate=0.5,train_n=0)
 x = pd.concat([x,tx])
 y = pd.concat([y,ty])
 del tx,ty
 
+
+
 #%% Fix learning rate and number of estimators for tuning tree-based parameters
 #    eta [default=0.3] –> learning_rate
 #        Analogous to learning rate in GBM
 #        Makes the model more robust by shrinking the weights on each step
 #        Typical final values to be used: 0.01-0.2
-xgb1 = XGBClassifier(
+xgb1 = XGBClassifier( #起点模型
      learning_rate =0.1,
      n_estimators=1000,
      max_depth=5,
@@ -138,11 +142,16 @@ xgb1 = XGBClassifier(
      nthread=-1,
      scale_pos_weight=1,
      seed=27)
-best_iter = modelfit(xgb1, x, y)
-xgb1.set_params(n_estimators=best_iter)
+best_iter = modelfit(xgb1, x, y) # 作图、找最优iter等
+xgb1.set_params(n_estimators=best_iter) # 改最优iter
+
+#%% 以下的区块中，每一块都是调某一两个参数，格式是类似的
+# 有些para_grid的range很小，因为那是最后的代码。一开始range都是很大的，我根据结果再把range调小然后再重复执行，所以留下的是最后的小range的代码。
 
 #%% Tune max_depth and min_child_weight
 gsearch=[]
+# 这个变量用来记录调参的整个过程。每次调一个参数就增加一项(xgb,para),所以最后的最优模型就是gsearch[-1][0].best_estimator_。这样便于调用前面某一步得到的模型。
+
 #    min_child_weight [default=1]
 #        Defines the minimum sum of weights of all observations required in a child.
 #        This is similar to min_child_leaf in GBM but not exactly. This refers to min “sum of weights” of observations while GBM has min “number of observations”.
@@ -160,17 +169,17 @@ gsearch=[]
 gsearch.append(tune(xgb1,{
  'max_depth':list(range(6,15)),
  'min_child_weight':list(range(0,4))
-}))
-# {'max_depth': 6, 'min_child_weight': 0}
+})) # 首先用xgb1来调，结果放到gsearch里面
+# {'max_depth': 11, 'min_child_weight': 0}
 
 #%% Tune gamma
 #    gamma [default=0]
 #        A node is split only when the resulting split gives a positive reduction in the loss function. Gamma specifies the minimum loss reduction required to make a split.
 #        Makes the algorithm conservative. The values can vary depending on the loss function and should be tuned.
 gsearch.append(tune(gsearch[-1][0].best_estimator_,{
- 'gamma':linspace(0.05,0.15,50)
+ 'gamma':linspace(0.35,0.45,10)
 }))
-# {'gamma': 0.11326530612244898}
+# {'gamma': 0.3833333333333333}
 
 #%% Tune subsample and colsample_bytree
 #    subsample [default=1]
@@ -184,10 +193,10 @@ gsearch.append(tune(gsearch[-1][0].best_estimator_,{
 #        Denotes the subsample ratio of columns for each split, in each level.
 #        I don’t use this often because subsample and colsample_bytree will do the job for you. but you can explore further if you feel so.
 gsearch.append(tune(gsearch[-1][0].best_estimator_,{
- 'subsample':linspace(0.3,0.8,10),
- 'colsample_bytree':linspace(0.8,1,10)
+ 'subsample':linspace(0.73,0.77,5),
+ 'colsample_bytree':linspace(0.75,0.8,5)
 }))
-# {'colsample_bytree': 1.0, 'subsample': 0.52222222222222214}
+# {'colsample_bytree': 0.75, 'subsample': 0.76000000000000001}
 
 #%% Tuning Regularization Parameters
 #    alpha [default=0] –> reg_alpha
@@ -199,16 +208,17 @@ gsearch.append(tune(gsearch[-1][0].best_estimator_,{
 gsearch.append(tune(gsearch[-1][0].best_estimator_,{
  'reg_alpha':[10**i for i in range(-7,3)]
 }))
-# {'reg_alpha': 0.01}
+# {'reg_alpha': 0.0001}
 gsearch.append(tune(gsearch[-1][0].best_estimator_,{
- 'reg_alpha':linspace(0.005,0.015)
+ 'reg_alpha':linspace(0.00005,0.00015,10)
 }))
-# {'reg_alpha': 0.0060204081632653063}
+# {'reg_alpha': 6.1111111111111107e-05}
 
-#%% Reducing Learning Rate
+#%% 最后一步是把learning_rate调小，重新计算最优n_estimators。不过我觉得不一定吧，如果速度已经很慢了，效果也可以，就没必要调小了。
 xgb0 = gsearch[-1][0].best_estimator_
 xgb0.set_params(learning_rate=0.01,n_estimators=1000)
 xgb0.set_params(n_estimators=modelfit(xgb0,x,y))
 xgb0
+# 最后可以把最优模型存到文件里面，也可以把参数复制出去用
 with open('xgb.pickle','wb') as f:
     pickle.dump(xgb0,f)

@@ -58,7 +58,7 @@ des2 = describe(flist.index) # 再次对所有变量做描述统计分析，与�
 des['newcount'] = des2['count']
 des['newcount']-des['count'] # 看看新产生了多少缺失值
 
-#%% imputation 填充缺失值 ####################################
+#%% imputation 填充缺失值 
 impute(flist.index)
 # 这个函数填充缺失值的步骤：
 # 首先填充分表的缺失值。如果是零星的缺失值，就用附近的值填充。如果附近还是缺失，就用最小值填充（一般是0）。
@@ -75,8 +75,8 @@ on_off_all(flist.index) # 这个函数会对每一个分表的数据进行开关
 # 这一步涉及的函数on_off_detect()和P_profile()的代码都不是很直观地对应上面的步骤。这是为了避免使用大循环（这个数据量的循环速度太慢了），拐着弯利用pd.eval()，np.where()等c编译好的函数。最后结果检查过和循环跑出来是一样的。
 
 # 把上面识别出的打开关闭的情况作图：
-lenth = plot_on_off_all(flist,save=20)
-# 这个函数会对每一个表的识别结果，save=20表示每个表随机取20个位置（有变化的位置）画图并保存起来。其中1号是总表，里面的线不是识别出来的，而是各个分表的识别结果的加总。
+lenth = plot_on_off_all(flist,save=5)
+# 这个函数会对每一个表的识别结果，save=5表示每个表随机取5个位置（有变化的位置）画图并保存起来。其中1号是总表，里面的线不是识别出来的，而是各个分表的识别结果的加总。
 # 结果在img文件夹里面。文件名含义例如4_161026093428.png表示电表4：在16年10月26日9:34:28处画的波形图。
 # 通过画图的结果，可以调整前面的on/off识别算法和参数。
 # 返回值是一个统计表，统计每个表识别出了多少的打开关闭事件。
@@ -100,39 +100,37 @@ trans_data_1()
 
 #%% MC 蒙特卡洛模拟实验
 
-para = trans_para(base_score=0.5, colsample_bylevel=1, colsample_bytree=0.8,
-       gamma=0.02, learning_rate=0.01, max_delta_step=0, max_depth=7,
-       min_child_weight=1, missing=None, n_estimators=704, nthread=-1,
-       objective='binary:logistic', reg_alpha=0.5, reg_lambda=1,
-       scale_pos_weight=1, seed=27, silent=True, subsample=0.8)
-# 这是要传递给xgboost模型的参数值。这些值是通过多次的CVsearch调参得到的。调参的步骤和参考资料见trial2_para_tuning.py
-result = MC_all(flist,para,selection=[])
-# multi_result=[]
-MC_all_multi(dfall,beginmat,endmat,para,multi_result,selection=[],rep=100)
-table_all = make_table(multi_result,flist)
-table_all.iloc[:,1:].apply(np.mean,reduce=['label'])
-table_descri = dfall.describe()
+para = trans_para(base_score=0.5, colsample_bylevel=1, colsample_bytree=0.75,
+       gamma=0.3833333333333333, learning_rate=0.1, max_delta_step=0,
+       max_depth=5, min_child_weight=1, missing=None, n_estimators=100,
+       nthread=-1, objective='binary:logistic',
+       reg_alpha=6.1111111111111107e-05, reg_lambda=1, scale_pos_weight=1,
+       seed=27, silent=True, subsample=0.76000000000000001)
+# 这是要传递给xgboost模型的参数值，通过trans_para()转化为一个dict。这些值是通过多次的CVsearch调参得到的。调参的步骤和参考资料见trial2_para_tuning.py
 
-# reduce the train set
-# multi_result_train2=[]
-para = {'num_boost_round':10, 
-        'params':{'max_depth':2, 'eta':0.1,
-                     'booster':'gbtree',
-                     'objective':'binary:logistic'}}
-result = MC_all(dfall,beginmat,endmat,para,selection=['p13'],lag=10,pre=10,trainrate=0.7,train_n=2)
-MC_all_multi(dfall,beginmat,endmat,para,multi_result_train2,selection=[],
-             lag=10,pre=10,trainrate=0.7,train_n=2,rep=1)
-
-# different trainrates
-para = {'num_boost_round':50, 
-        'params':{'max_depth':12, 'eta':0.3,
-                     'booster':'gbtree',
-                     'objective':'binary:logistic'}}
-# result_trainrate = {}
+result_trainrate = {}
 MC_trainrate(flist,para,result_trainrate,selection=[],
-                 trainrate=0.5,train_n=range(1,21),rep=10)
-
+                 trainrate=0.5,train_n=range(100,101),rep=1)
+# flist传递需要实验的哪些用电器，para传递上面设好的参数，result_trainrate存放实验结果，
+# selection指定flist.index中的数，比如[3,4,5]代表只算3,4,5这三个电表，而[]代表全部算一遍
+# trainrate是划分测试集和训练集大小时训练集的比例，
+# train_n必须是一个iterabel的量，其中每一个数是在划分以后在训练集中允许训练集中出现的发生事件的次数，这个次数模拟的是用户需要人工参与的次数
+# rep是以上所有实验重复的次数
+# 这里因为时间不够，所以我只实验了train_n=[20,100]的情形
 table_s = make_table_s(result_trainrate, flist)
+# 这个命令是对dict中的每一个元素中的实验结果进行转换，转换为一个可以阅读的表
 table_s_1 = make_error_table(table_s)
-tables1_plot(table_s_1.loc[[i for i in table_s_1.index if i not in [('p9','begin'),('p9','end')]]],flist)
-#plot_on_off(dfall, beginmat, endmat, 'p9',lines=False)
+# 这个命令是对上面得到的多个表的dict合并为一个表，只留下TF的误差率
+# 这个TF错误率表示当真实情况是该用电器确实发生了on/off事件时，识别结果为没有发生的比例。与之相对的FT错误率是实际没发生事件，而识别出事件发生的错误率。在所有结果中FT错误率都非常小，所以终点考察TF错误率。这也和实际需求相符合。
+tables1_plot(table_s_1.loc[[i for i in table_s_1.index]],flist)
+# 这个命令对上面的结果作图。横坐标是train_n，纵坐标是TF错误率，颜色和图示是识别的用电器以及是打开还是关闭。
+
+# 下面这几行和上面几行重复
+#result_trainrate20 = {}
+#MC_trainrate(flist,para,result_trainrate20,selection=[],
+#                 trainrate=0.5,train_n=range(20,21),rep=1)
+#table_s_20 = make_table_s(result_trainrate20, flist)
+#table_s_1_20 = make_error_table(table_s)
+#tables1_plot(table_s_1.loc[[i for i in table_s_1.index]],flist)
+
+
